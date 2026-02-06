@@ -1,73 +1,75 @@
-# React + TypeScript + Vite
+# OpenPEQ
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+A browser-based parametric EQ configurator for USB DAC/Amps using the WebHID API. Configure your device's parametric EQ directly from the browser — no drivers or desktop software needed.
 
-Currently, two official plugins are available:
+## Features
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Babel](https://babeljs.io/) (or [oxc](https://oxc.rs) when used in [rolldown-vite](https://vite.dev/guide/rolldown)) for Fast Refresh
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/) for Fast Refresh
+- **WebHID device control** — connect to compatible USB DAC/Amps directly from the browser
+- **10-band parametric EQ** — PK, LSQ, HSQ filter types with real-time frequency response graph
+- **Community EQ Library** — 6,000+ headphone EQ profiles from AutoEQ + 75 curated profiles from Resolve
+- **Preset management** — import/export AutoEQ `.txt` files, save/load local presets
+- **Undo/Redo** — full history with keyboard shortcuts
+- **A/B compare** — quickly toggle between two EQ configurations
+- **Save to flash** — persist EQ settings on device across power cycles
+- **Favorites** — bookmark community profiles for quick access
+- **Keyboard shortcuts** — Ctrl+Z/Y undo/redo, Ctrl+S save, Ctrl+Shift+S save to flash, and more
 
-## React Compiler
+## Tech Stack
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+React 19, TypeScript, Tailwind CSS 4, Zustand 5, Vite 7
 
-## Expanding the ESLint configuration
+## Getting Started
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+Open `http://localhost:5173` in a Chromium-based browser (Chrome, Edge, Opera — WebHID is not supported in Firefox/Safari).
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Credits & Acknowledgments
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
-```
+This project would not be possible without the work of the following people and projects:
+
+### EQ Data Sources
+
+- **[AutoEQ](https://github.com/jaakkopasanen/AutoEq)** by Jaakko Pasanen — the backbone of the Community EQ Library, providing 6,000+ automatically generated headphone EQ profiles from 26 measurement sources
+- **[Resolve (Andrew Park)](https://www.headphones.com/pages/measurments-and-eq)** at headphones.com — 75 curated parametric EQ profiles from the [headphones.com EQ Repository](https://forum.headphones.com/t/eq-repository/19481), hand-tuned for accuracy and listenability
+
+### AutoEQ Measurement Sources
+
+The AutoEQ database aggregates measurements from these contributors:
+
+| Source | Contributor |
+|--------|------------|
+| [oratory1990](https://www.reddit.com/r/oratory1990/) | oratory1990 |
+| [crinacle](https://crinacle.com/) | crinacle |
+| [Rtings](https://www.rtings.com/) | Rtings.com |
+| [Innerfidelity](https://www.innerfidelity.com/) | Tyll Hertsens |
+| [Super Review](https://www.youtube.com/@SuperReview) | Super Review |
+| [HypetheSonics](https://www.hypethesonics.com/) | HypetheSonics |
+| [Kuulokenurkka](https://kuulokenurkka.fi/) | Kuulokenurkka |
+| [Headphone.com Legacy](https://www.headphone.com/) | Headphone.com |
+| Harpo | Harpo |
+| Fahryst | Fahryst |
+| Filk | Filk |
+| DHRME | DHRME |
+| Bakkwatan | Bakkwatan |
+| Auriculares Argentina | Auriculares Argentina |
+| Hi End Portable | Hi End Portable |
+| Jaytiss | Jaytiss |
+| Kazi | Kazi |
+| Regan Cipher | Regan Cipher |
+| RikudouGoku | RikudouGoku |
+| Ted's Squig Hoard | Ted's Squig Hoard |
+| ToneDeafMonk | ToneDeafMonk |
+| freeryder05 | freeryder05 |
+| kr0mka | kr0mka |
+
+### DSP Reference
+
+- Biquad filter coefficient formulas based on Robert Bristow-Johnson's [Audio EQ Cookbook](https://www.w3.org/2011/audio/audio-eq-cookbook.html)
+
+## License
+
+MIT
