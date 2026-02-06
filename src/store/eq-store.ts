@@ -6,6 +6,7 @@ import type { ConnectedDevice } from '../lib/usb/hid-connection';
 import { connectToDevice, disconnectFromDevice } from '../lib/usb/hid-connection';
 import { pullFiltersFromDevice, pushFiltersToDevice, saveToDeviceFlash } from '../lib/usb/walkplay-protocol';
 import { loadPresets, savePresets } from '../lib/presets/storage';
+import { sanitizeBands, sanitizePreamp } from '../lib/validation';
 
 // ── Types ──────────────────────────────────────────────────────────────
 
@@ -212,10 +213,12 @@ export const useEQStore = create<EQStore>((set, get) => ({
   },
 
   setBands: (bands, preamp) => {
+    const safeBands = sanitizeBands(bands);
+    const safePreamp = preamp !== undefined ? sanitizePreamp(preamp) : undefined;
     set(state => ({
       ...pushHistory(state),
-      bands,
-      preamp: preamp ?? (state.autoPreamp ? calculateAutoPreamp(bands) : state.preamp),
+      bands: safeBands,
+      preamp: safePreamp ?? (state.autoPreamp ? calculateAutoPreamp(safeBands) : state.preamp),
       isDirty: true,
       activePresetId: null,
     }));
@@ -412,10 +415,12 @@ export const useEQStore = create<EQStore>((set, get) => ({
   loadPreset: (id) => {
     const preset = get().presets.find(p => p.id === id);
     if (!preset) return;
+    const safeBands = sanitizeBands(preset.bands);
+    const safePreamp = sanitizePreamp(preset.preamp);
     set(state => ({
       ...pushHistory(state),
-      bands: preset.bands.map(b => ({ ...b })),
-      preamp: preset.preamp,
+      bands: safeBands,
+      preamp: safePreamp,
       autoPreamp: false,
       activePresetId: id,
       isDirty: true,

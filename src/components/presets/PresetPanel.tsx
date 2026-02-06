@@ -52,6 +52,14 @@ export function PresetPanel() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Reject files larger than 1 MB to prevent browser hang
+    const MAX_FILE_SIZE = 1_048_576;
+    if (file.size > MAX_FILE_SIZE) {
+      console.error('Import rejected: file exceeds 1 MB size limit');
+      e.target.value = '';
+      return;
+    }
+
     const input = e.target;
     const reader = new FileReader();
     reader.onload = () => {

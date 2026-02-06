@@ -25,6 +25,10 @@ export function parseIndexMd(markdown: string): AutoEQEntry[] {
 
     const name = match[1];
     const rawPath = decodeURIComponent(match[2]); // "oratory1990/over-ear/HIFIMAN Edition XS"
+
+    // Reject path-traversal attempts from untrusted index data
+    if (rawPath.includes('..')) continue;
+
     const sourceAndRig = match[3]; // "oratory1990 on GRAS 43AG-7" or just "oratory1990"
     const source = sourceAndRig.replace(/\s+on\s+.+$/, ''); // strip " on rig"
 

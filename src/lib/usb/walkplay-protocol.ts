@@ -1,4 +1,6 @@
 import type { Band, FilterType } from '../../types/eq';
+import { MIN_FREQ, MAX_FREQ, MIN_GAIN, MAX_GAIN, MIN_Q, MAX_Q } from '../../types/eq';
+import { clamp } from '../../utils/math';
 import { computeIIRBytes } from '../dsp/biquad';
 import {
   REPORT_ID, READ, WRITE, END, CMD,
@@ -8,6 +10,10 @@ import {
 
 // Mutex to prevent concurrent device operations from stomping each other
 let deviceBusy = false;
+
+// Flash write rate-limiting to prevent flash memory wear-out
+let lastFlashWriteTime = 0;
+const FLASH_WRITE_COOLDOWN_MS = 5000;
 
 async function withDeviceLock<T>(fn: () => Promise<T>): Promise<T> {
   if (deviceBusy) {
@@ -93,7 +99,14 @@ function parseFilterPacket(packet: Uint8Array): {
   const typeVal = packet[33];
   const type = (BYTE_TO_FILTER_TYPE[typeVal] || 'PK') as FilterType;
 
-  return { filterIndex, freq, q, gain, type };
+  // Clamp device response values to safe ranges (defense against malfunctioning device)
+  return {
+    filterIndex,
+    freq: clamp(freq, MIN_FREQ, MAX_FREQ),
+    q: clamp(q, MIN_Q, MAX_Q),
+    gain: clamp(gain, MIN_GAIN, MAX_GAIN),
+    type,
+  };
 }
 
 /** Pull all PEQ filters from device */
@@ -175,11 +188,17 @@ function buildFilterPacket(
   band: Band,
   slotId: number
 ): number[] {
-  const iirBytes = computeIIRBytes(band.freq, band.enabled ? band.gain : 0, band.q, band.type);
-  const freqBytes = toLittleEndian16(band.freq);
-  const qBytes = toLittleEndian16(Math.round(band.q * 256));
-  const gainBytes = toSigned16FixedPoint(band.enabled ? band.gain : 0, 256);
-  const filterTypeByte = FILTER_TYPE_TO_BYTE[band.type] ?? 2;
+  // Defense-in-depth: final clamp at protocol boundary before HID write
+  const freq = clamp(Math.round(band.freq), MIN_FREQ, MAX_FREQ);
+  const gain = band.enabled ? clamp(band.gain, MIN_GAIN, MAX_GAIN) : 0;
+  const q = clamp(band.q, MIN_Q, MAX_Q);
+  const type = band.type;
+
+  const iirBytes = computeIIRBytes(freq, gain, q, type);
+  const freqBytes = toLittleEndian16(freq);
+  const qBytes = toLittleEndian16(Math.round(q * 256));
+  const gainBytes = toSigned16FixedPoint(gain, 256);
+  const filterTypeByte = FILTER_TYPE_TO_BYTE[type] ?? 2;
 
   return [
     WRITE, CMD.PEQ_VALUES, 0x18, 0x00, filterIndex, 0x00, 0x00,
@@ -247,12 +266,21 @@ export async function saveToDeviceFlash(
   slotId: number,
   preamp?: number
 ): Promise<void> {
+  // Rate-limit flash writes to prevent flash memory wear-out
+  const now = Date.now();
+  const elapsed = now - lastFlashWriteTime;
+  if (elapsed < FLASH_WRITE_COOLDOWN_MS) {
+    const remaining = Math.ceil((FLASH_WRITE_COOLDOWN_MS - elapsed) / 1000);
+    throw new Error(`Please wait ${remaining}s before saving to flash again`);
+  }
+
   console.log(`[CrinEQ] saveToDeviceFlash: slotId=${slotId}, ${bands.length} bands, preamp=${preamp}`);
   return withDeviceLock(async () => {
     // Push the filters (including preamp)
     await pushFiltersInternal(device, bands, slotId, preamp);
     // Then commit to flash
     await sendReport(device, REPORT_ID, [WRITE, CMD.FLASH_EQ, 0x01, END]);
+    lastFlashWriteTime = Date.now();
   });
 }
 

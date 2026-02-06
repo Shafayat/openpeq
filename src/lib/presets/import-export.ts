@@ -1,6 +1,7 @@
 import type { Band, FilterType, Preset } from '../../types/eq';
 import { DEFAULT_BANDS } from '../../types/eq';
 import { generateId, clamp } from '../../utils/math';
+import { sanitizeBands, sanitizePreamp } from '../validation';
 
 /**
  * Parse AutoEQ / EqualizerAPO format. Handles many variations:
@@ -112,16 +113,19 @@ export function exportAsJSON(bands: Band[], preamp: number, name: string): strin
   return JSON.stringify(preset, null, 2);
 }
 
-/** Import a JSON preset file */
+/** Import a JSON preset file with full sanitization of untrusted data. */
 export function importFromJSON(json: string): { bands: Band[]; preamp: number; name: string } {
   const parsed = JSON.parse(json);
-  if (!parsed.bands || !Array.isArray(parsed.bands)) {
+  if (!parsed || typeof parsed !== 'object') {
     throw new Error('Invalid preset file format');
   }
+  if (!parsed.bands || !Array.isArray(parsed.bands)) {
+    throw new Error('Invalid preset file format: missing bands array');
+  }
   return {
-    bands: parsed.bands.slice(0, 10),
-    preamp: parsed.preamp ?? 0,
-    name: parsed.name ?? 'Imported Preset',
+    bands: sanitizeBands(parsed.bands),
+    preamp: sanitizePreamp(parsed.preamp),
+    name: typeof parsed.name === 'string' ? parsed.name.slice(0, 100) : 'Imported Preset',
   };
 }
 
