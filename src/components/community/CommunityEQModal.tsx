@@ -26,7 +26,7 @@ export function CommunityEQModal() {
   const store = useCommunityStore();
   const setBands = useEQStore(s => s.setBands);
   const inputRef = useRef<HTMLInputElement>(null);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Load index when modal opens (lazy)
   useEffect(() => {
