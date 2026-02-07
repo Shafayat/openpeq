@@ -15,7 +15,8 @@ const SOURCE_COLORS: Record<string, string> = {
 
 export function FavoriteBar() {
   const favorites = useCommunityStore(s => s.favorites);
-  const setBands = useEQStore(s => s.setBands);
+  const setBandsFromCommunity = useEQStore(s => s.setBandsFromCommunity);
+  const activeCommunityPath = useEQStore(s => s.activeCommunityPath);
   const [loading, setLoading] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -26,7 +27,7 @@ export function FavoriteBar() {
     setError(null);
     try {
       const { bands, preamp } = await fetchAutoEQProfile(entry);
-      setBands(bands, preamp);
+      setBandsFromCommunity(bands, preamp, entry.path);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load profile');
     }
@@ -41,6 +42,7 @@ export function FavoriteBar() {
       <div className="flex flex-wrap gap-1.5 flex-1">
         {favorites.map(fav => {
           const isLoading = loading === fav.path;
+          const isActive = activeCommunityPath === fav.path;
           return (
             <button
               key={fav.path}
@@ -49,11 +51,17 @@ export function FavoriteBar() {
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs border transition-all ${
                 isLoading
                   ? 'bg-accent/15 text-accent border-accent/30'
-                  : 'bg-bg-input text-text-secondary border-border hover:border-accent/40 hover:text-accent disabled:opacity-40'
+                  : isActive
+                    ? 'bg-accent/20 text-accent border-accent/50 ring-1 ring-accent/20'
+                    : 'bg-bg-input text-text-secondary border-border hover:border-accent/40 hover:text-accent disabled:opacity-40'
               }`}
             >
               {isLoading ? (
                 <div className="w-3 h-3 border-[1.5px] border-accent/30 border-t-accent rounded-full animate-spin" />
+              ) : isActive ? (
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="text-accent">
+                  <polyline points="20 6 9 17 4 12" />
+                </svg>
               ) : (
                 <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="opacity-40">
                   <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />

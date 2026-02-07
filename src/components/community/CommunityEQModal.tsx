@@ -24,7 +24,8 @@ function getSourceColor(source: string): string {
 
 export function CommunityEQModal() {
   const store = useCommunityStore();
-  const setBands = useEQStore(s => s.setBands);
+  const setBandsFromCommunity = useEQStore(s => s.setBandsFromCommunity);
+  const activeCommunityPath = useEQStore(s => s.activeCommunityPath);
   const inputRef = useRef<HTMLInputElement>(null);
   const timerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
@@ -87,13 +88,13 @@ export function CommunityEQModal() {
     store.setError(null);
     try {
       const { bands, preamp } = await fetchAutoEQProfile(entry);
-      setBands(bands, preamp);
+      setBandsFromCommunity(bands, preamp, entry.path);
       store.close();
     } catch (err) {
       store.setError(err instanceof Error ? err.message : 'Failed to load profile');
       store.setLoadingProfile(false);
     }
-  }, [setBands, store]);
+  }, [setBandsFromCommunity, store]);
 
   // Close on Escape
   useEffect(() => {
@@ -141,15 +142,18 @@ export function CommunityEQModal() {
         {store.favorites.length > 0 && (
           <div className="flex flex-wrap gap-1.5">
             {store.favorites.map(fav => {
-              const isActive = store.query === fav.name;
+              const isSearching = store.query === fav.name;
+              const isLoaded = activeCommunityPath === fav.path;
               return (
                 <button
                   key={fav.path}
                   onClick={() => handleFavoriteClick(fav)}
                   className={`group/fav flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs border transition-all ${
-                    isActive
-                      ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
-                      : 'bg-bg-input text-text-secondary border-border hover:border-amber-500/30 hover:text-amber-400'
+                    isLoaded
+                      ? 'bg-accent/20 text-accent border-accent/50 ring-1 ring-accent/20'
+                      : isSearching
+                        ? 'bg-amber-500/15 text-amber-400 border-amber-500/30'
+                        : 'bg-bg-input text-text-secondary border-border hover:border-amber-500/30 hover:text-amber-400'
                   }`}
                 >
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 opacity-60">
@@ -260,10 +264,15 @@ export function CommunityEQModal() {
             <div className="flex flex-col gap-1">
               {store.results.map((result, i) => {
                 const isFav = store.favorites.some(f => f.path === result.entry.path);
+                const isActive = activeCommunityPath === result.entry.path;
                 return (
                   <div
                     key={`${result.entry.path}-${i}`}
-                    className="flex items-center gap-1 rounded-lg transition-all hover:bg-bg-card-hover/60 group"
+                    className={`flex items-center gap-1 rounded-lg transition-all group ${
+                      isActive
+                        ? 'bg-accent/10 border border-accent/20'
+                        : 'hover:bg-bg-card-hover/60'
+                    }`}
                   >
                     <button
                       onClick={(e) => {
@@ -295,6 +304,11 @@ export function CommunityEQModal() {
                       >
                         {result.entry.source}
                       </span>
+                      {isActive && (
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="flex-shrink-0 ml-1 text-accent">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
                     </button>
                   </div>
                 );

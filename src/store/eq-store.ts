@@ -30,6 +30,7 @@ interface EQStore {
   // Preset State
   presets: Preset[];
   activePresetId: string | null;
+  activeCommunityPath: string | null;
 
   // Dirty tracking (unsaved changes)
   isDirty: boolean;
@@ -59,6 +60,7 @@ interface EQStore {
   setAutoPreamp: (enabled: boolean) => void;
   resetFlat: () => void;
   setBands: (bands: Band[], preamp?: number) => void;
+  setBandsFromCommunity: (bands: Band[], preamp: number, path: string) => void;
   toggleEQ: () => void;
 
   // Undo/Redo Actions
@@ -125,6 +127,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
   connectedDevice: null,
   presets: loadPresets(),
   activePresetId: null,
+  activeCommunityPath: null,
   isDirty: false,
   eqEnabled: true,
 
@@ -164,7 +167,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
         return updated;
       });
       const preamp = state.autoPreamp ? calculateAutoPreamp(bands) : state.preamp;
-      return { ...hist, bands, preamp, isDirty: true, activePresetId: null };
+      return { ...hist, bands, preamp, isDirty: true, activePresetId: null, activeCommunityPath: null };
     });
   },
 
@@ -174,6 +177,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
       bands: state.bands.map((b, i) => i === index ? { ...b, type } : b),
       isDirty: true,
       activePresetId: null,
+      activeCommunityPath: null,
     }));
   },
 
@@ -184,7 +188,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
         i === index ? { ...b, enabled: !b.enabled } : b
       );
       const preamp = state.autoPreamp ? calculateAutoPreamp(bands) : state.preamp;
-      return { ...hist, bands, preamp, isDirty: true, activePresetId: null };
+      return { ...hist, bands, preamp, isDirty: true, activePresetId: null, activeCommunityPath: null };
     });
   },
 
@@ -208,7 +212,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
     set(state => {
       const hist = pushHistory(state);
       const bands = DEFAULT_BANDS.map(b => ({ ...b }));
-      return { ...hist, bands, preamp: 0, autoPreamp: true, isDirty: true, activePresetId: null };
+      return { ...hist, bands, preamp: 0, autoPreamp: true, isDirty: true, activePresetId: null, activeCommunityPath: null };
     });
   },
 
@@ -221,6 +225,21 @@ export const useEQStore = create<EQStore>((set, get) => ({
       preamp: safePreamp ?? (state.autoPreamp ? calculateAutoPreamp(safeBands) : state.preamp),
       isDirty: true,
       activePresetId: null,
+      activeCommunityPath: null,
+    }));
+  },
+
+  setBandsFromCommunity: (bands, preamp, path) => {
+    const safeBands = sanitizeBands(bands);
+    const safePreamp = sanitizePreamp(preamp);
+    set(state => ({
+      ...pushHistory(state),
+      bands: safeBands,
+      preamp: safePreamp,
+      autoPreamp: false,
+      isDirty: true,
+      activePresetId: null,
+      activeCommunityPath: path,
     }));
   },
 
@@ -261,6 +280,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
         canRedo: true,
         isDirty: true,
         activePresetId: null,
+        activeCommunityPath: null,
       };
     });
   },
@@ -280,6 +300,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
         canRedo: future.length > 0,
         isDirty: true,
         activePresetId: null,
+        activeCommunityPath: null,
       };
     });
   },
@@ -380,6 +401,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
         preamp: result.globalGain,
         isDirty: false,
         activePresetId: null,
+        activeCommunityPath: null,
       }));
     } catch (err) {
       if (err instanceof Error && err.message === 'Device is busy') return;
@@ -423,6 +445,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
       preamp: safePreamp,
       autoPreamp: false,
       activePresetId: id,
+      activeCommunityPath: null,
       isDirty: true,
     }));
   },
