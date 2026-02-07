@@ -27,7 +27,7 @@ export function FavoriteBar() {
     setError(null);
     try {
       const { bands, preamp } = await fetchAutoEQProfile(entry);
-      setBandsFromCommunity(bands, preamp, entry.path);
+      setBandsFromCommunity(bands, preamp, entry.path, entry.name, entry.source);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to load profile');
     }

@@ -3,7 +3,16 @@ import { useEQStore } from '../../store/eq-store';
 export function Header() {
   const device = useEQStore(s => s.device);
   const isDirty = useEQStore(s => s.isDirty);
+  const activePresetId = useEQStore(s => s.activePresetId);
+  const presets = useEQStore(s => s.presets);
+  const activeCommunityName = useEQStore(s => s.activeCommunityName);
+  const activeCommunitySource = useEQStore(s => s.activeCommunitySource);
   const isConnected = device.status === 'connected';
+
+  // Determine active EQ label
+  const activePresetName = activePresetId
+    ? presets.find(p => p.id === activePresetId)?.name ?? null
+    : null;
 
   return (
     <header className="flex items-center justify-between px-6 py-4">
@@ -22,6 +31,33 @@ export function Header() {
           </h1>
           <p className="text-[10px] text-text-muted uppercase tracking-widest">USB Parametric EQ Configurator</p>
         </div>
+
+        {/* Active EQ indicator */}
+        {activeCommunityName && (
+          <div className="flex items-center gap-1.5 ml-2 px-3 py-1 bg-accent/10 border border-accent/20 rounded-full">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-accent flex-shrink-0">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span className="text-xs font-medium text-accent truncate max-w-[200px]">
+              {activeCommunityName}
+            </span>
+            {activeCommunitySource && (
+              <span className="text-[9px] text-accent/50">
+                {activeCommunitySource}
+              </span>
+            )}
+          </div>
+        )}
+        {activePresetName && !activeCommunityName && (
+          <div className="flex items-center gap-1.5 ml-2 px-3 py-1 bg-accent/10 border border-accent/20 rounded-full">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" className="text-accent flex-shrink-0">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+            <span className="text-xs font-medium text-accent truncate max-w-[200px]">
+              {activePresetName}
+            </span>
+          </div>
+        )}
       </div>
 
       <div className="flex items-center gap-2">
