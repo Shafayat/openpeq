@@ -5,4 +5,9 @@ import tailwindcss from '@tailwindcss/vite'
 export default defineConfig({
   plugins: [react(), tailwindcss()],
   base: '/openpeq/',
+  root: 'src/renderer',
+  build: {
+    outDir: '../../dist',
+    emptyOutDir: true,
+  },
 })

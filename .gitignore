@@ -12,6 +12,11 @@ dist
 dist-ssr
 *.local
 
+# Electron
+out/
+dist-electron/
+resources/autoeq-bundle.json
+
 # Environment files
 .env
 .env.*

@@ -63,6 +63,49 @@ export async function disconnectFromDevice(device: HIDDevice): Promise<void> {
   }
 }
 
+/**
+ * Try to auto-connect to an already-paired device (no user gesture needed).
+ * Uses navigator.hid.getDevices() which returns previously authorized devices.
+ * Returns null if no matching device is found.
+ */
+export async function tryAutoConnect(): Promise<ConnectedDevice | null> {
+  if (!isWebHIDSupported()) return null;
+
+  try {
+    const devices = await navigator.hid.getDevices();
+    const match = devices.find(d => WALKPLAY_VENDOR_IDS.includes(d.vendorId));
+    if (!match) return null;
+
+    if (!match.opened) {
+      await match.open();
+    }
+
+    let firmwareVersion = 'Unknown';
+    try {
+      firmwareVersion = await readFirmwareVersion(match);
+    } catch {
+      // Firmware read may fail on some devices
+    }
+
+    let currentSlot = -1;
+    try {
+      currentSlot = await readCurrentSlot(match);
+    } catch {
+      // Slot read may fail
+    }
+
+    return {
+      rawDevice: match,
+      model: match.productName || 'Unknown Device',
+      manufacturer: 'CrinEar',
+      firmwareVersion,
+      currentSlot,
+    };
+  } catch {
+    return null;
+  }
+}
+
 /** Check if a device is still connected */
 export async function checkDeviceConnected(device: HIDDevice): Promise<boolean> {
   try {

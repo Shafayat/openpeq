@@ -1,5 +1,6 @@
 import type { AutoEQEntry, AutoEQIndex } from '../../types/autoeq';
 import { RESOLVE_PRESETS } from './resolve-presets';
+import { getBundleEntries } from './autoeq-bundle';
 
 const INDEX_URL = 'https://raw.githubusercontent.com/jaakkopasanen/AutoEq/master/results/INDEX.md';
 const STORAGE_KEY = 'openpeq-autoeq-index';
@@ -97,8 +98,17 @@ let memoryCache: AutoEQEntry[] | null = null;
 
 export async function getAutoEQIndex(): Promise<AutoEQEntry[]> {
   if (memoryCache) return memoryCache;
+
+  // Electron: load from offline bundle (instant, no network)
+  const bundleEntries = await getBundleEntries();
+  if (bundleEntries) {
+    const resolveEntries = RESOLVE_PRESETS.map(p => p.entry);
+    memoryCache = [...bundleEntries, ...resolveEntries];
+    return memoryCache;
+  }
+
+  // Web: fetch from GitHub with localStorage cache
   const autoEQEntries = await fetchAutoEQIndex();
-  // Merge in Resolve (headphones.com) presets
   const resolveEntries = RESOLVE_PRESETS.map(p => p.entry);
   memoryCache = [...autoEQEntries, ...resolveEntries];
   return memoryCache;

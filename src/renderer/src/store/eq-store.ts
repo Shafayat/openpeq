@@ -3,7 +3,7 @@ import type { Band, DeviceState, Preset, FilterType } from '../types/eq';
 import { DEFAULT_BANDS, MIN_FREQ, MAX_FREQ, MIN_GAIN, MAX_GAIN, MIN_Q, MAX_Q } from '../types/eq';
 import { clamp, generateId, roundTo } from '../utils/math';
 import type { ConnectedDevice } from '../lib/usb/hid-connection';
-import { connectToDevice, disconnectFromDevice } from '../lib/usb/hid-connection';
+import { connectToDevice, disconnectFromDevice, tryAutoConnect } from '../lib/usb/hid-connection';
 import { pullFiltersFromDevice, pushFiltersToDevice, saveToDeviceFlash } from '../lib/usb/walkplay-protocol';
 import { loadPresets, savePresets } from '../lib/presets/storage';
 import { sanitizeBands, sanitizePreamp } from '../lib/validation';
@@ -77,6 +77,7 @@ interface EQStore {
 
   // Device Actions
   connect: () => Promise<void>;
+  autoConnect: () => Promise<void>;
   disconnect: () => Promise<void>;
   pullFromDevice: () => Promise<void>;
   saveToDevice: () => Promise<void>;
@@ -378,6 +379,27 @@ export const useEQStore = create<EQStore>((set, get) => ({
           errorMessage: err instanceof Error ? err.message : 'Connection failed',
         },
       }));
+    }
+  },
+
+  autoConnect: async () => {
+    // Silent auto-connect: no status change on failure, no error shown
+    const { connectedDevice } = get();
+    if (connectedDevice) return; // Already connected
+
+    const connected = await tryAutoConnect();
+    if (connected) {
+      set({
+        connectedDevice: connected,
+        device: {
+          status: 'connected',
+          model: connected.model,
+          manufacturer: connected.manufacturer,
+          firmwareVersion: connected.firmwareVersion,
+          currentSlot: connected.currentSlot,
+          errorMessage: null,
+        },
+      });
     }
   },
 

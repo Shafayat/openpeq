@@ -1,0 +1,37 @@
+appId: com.openpeq.app
+productName: OpenPEQ
+directories:
+  buildResources: build
+  output: dist-electron
+files:
+  - '!**/.vscode/*'
+  - '!src/*'
+  - '!scripts/*'
+  - '!electron.vite.config.{js,ts,mjs,cjs}'
+  - '!vite.config.{js,ts,mjs,cjs}'
+  - '!{.eslintignore,.eslintrc.cjs,.prettierignore,.prettierrc.yaml,README.md}'
+  - '!{.env,.env.*,.npmrc,pnpm-lock.yaml}'
+  - '!{tsconfig.json,tsconfig.node.json,tsconfig.web.json}'
+extraResources:
+  - from: resources/
+    to: resources/
+    filter:
+      - '**/*'
+asarUnpack:
+  - resources/**
+icon: resources/icon.ico
+win:
+  executableName: OpenPEQ
+  icon: resources/icon.ico
+  target:
+    - nsis
+nsis:
+  artifactName: OpenPEQ-${version}-setup.${ext}
+  shortcutName: OpenPEQ
+  uninstallDisplayName: OpenPEQ ${version}
+  createDesktopShortcut: always
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  perMachine: false
+  deleteAppDataOnUninstall: false
+npmRebuild: false
