@@ -12,20 +12,25 @@ export function useDevice() {
   const autoConnectRef = useRef(autoConnect);
   autoConnectRef.current = autoConnect;
 
-  // Electron: auto-connect on mount + poll for new devices when disconnected
+  // Electron: try requestDevice() once on mount to grant initial HID permission.
+  // This only needs to happen once — after that, getDevices() will find the device.
+  const hasTriedInitialConnect = useRef(false);
+  useEffect(() => {
+    if (!isElectron || hasTriedInitialConnect.current) return;
+    hasTriedInitialConnect.current = true;
+    // Pass true to use requestDevice() fallback for initial permission grant
+    autoConnectRef.current(true);
+  }, []);
+
+  // Electron: poll for device when disconnected (uses getDevices() only, no requestDevice())
   useEffect(() => {
     if (!isElectron) return;
+    if (connectedDevice) return; // Connected — no need to poll
 
-    // Try immediately on mount
-    autoConnectRef.current();
-
-    if (!connectedDevice) {
-      // No device yet — poll every 3s until one appears
-      const interval = setInterval(() => {
-        autoConnectRef.current();
-      }, 3000);
-      return () => clearInterval(interval);
-    }
+    const interval = setInterval(() => {
+      autoConnectRef.current();
+    }, 3000);
+    return () => clearInterval(interval);
   }, [connectedDevice]);
 
   // Health check: detect device unplug (both web and Electron)

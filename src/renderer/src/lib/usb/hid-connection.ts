@@ -63,17 +63,41 @@ export async function disconnectFromDevice(device: HIDDevice): Promise<void> {
   }
 }
 
+// Guard against concurrent auto-connect attempts
+let autoConnectInFlight = false;
+
 /**
  * Try to auto-connect to an already-paired device (no user gesture needed).
  * Uses navigator.hid.getDevices() which returns previously authorized devices.
+ *
+ * In Electron, if no previously-paired device is found, falls back to
+ * requestDevice() which is silently auto-selected by the main process's
+ * select-hid-device handler (no picker dialog shown).
+ *
  * Returns null if no matching device is found.
  */
-export async function tryAutoConnect(): Promise<ConnectedDevice | null> {
+export async function tryAutoConnect(useRequestFallback = false): Promise<ConnectedDevice | null> {
   if (!isWebHIDSupported()) return null;
+  if (autoConnectInFlight) return null;
 
+  autoConnectInFlight = true;
   try {
+    // First try previously authorized devices (no user gesture required)
     const devices = await navigator.hid.getDevices();
-    const match = devices.find(d => WALKPLAY_VENDOR_IDS.includes(d.vendorId));
+    let match = devices.find(d => WALKPLAY_VENDOR_IDS.includes(d.vendorId));
+
+    // In Electron, the main process auto-selects the device so requestDevice()
+    // won't show a picker — safe to call without a user gesture.
+    if (!match && useRequestFallback) {
+      try {
+        const filters = WALKPLAY_VENDOR_IDS.map(vendorId => ({ vendorId }));
+        const requested = await navigator.hid.requestDevice({ filters });
+        match = requested[0] ?? null;
+      } catch {
+        // requestDevice may fail if no device is plugged in — that's fine
+      }
+    }
+
     if (!match) return null;
 
     if (!match.opened) {
@@ -103,16 +127,29 @@ export async function tryAutoConnect(): Promise<ConnectedDevice | null> {
     };
   } catch {
     return null;
+  } finally {
+    autoConnectInFlight = false;
   }
 }
 
-/** Check if a device is still connected */
+/**
+ * Check if a device is still connected.
+ * Uses both getDevices() and the device's opened state for reliability —
+ * in Electron, getDevices() may not always list devices authorized via requestDevice().
+ */
 export async function checkDeviceConnected(device: HIDDevice): Promise<boolean> {
+  // If the device handle itself reports closed, it's definitely gone
+  if (!device.opened) return false;
+
   try {
     const devices = await navigator.hid.getDevices();
-    return devices.some(
+    const foundInList = devices.some(
       d => d.vendorId === device.vendorId && d.productId === device.productId
     );
+    // Trust the device list if it finds the device.
+    // If not found but device.opened is still true, trust the handle —
+    // Electron may not list devices authorized via requestDevice().
+    return foundInList || device.opened;
   } catch {
     return false;
   }

@@ -31,10 +31,9 @@ function createWindow(): void {
 
   // --- WebHID Permission Handling ---
 
-  // Allow the renderer to use the HID permission at all
+  // Only allow the HID permission; deny everything else (camera, mic, geolocation, notifications, ...)
   mainWindow.webContents.session.setPermissionCheckHandler((_wc, permission) => {
-    if (permission === 'hid') return true
-    return true
+    return permission === 'hid'
   })
 
   // Grant permission for devices matching our vendor IDs

@@ -26,6 +26,8 @@ interface EQStore {
   // Device State
   device: DeviceState;
   connectedDevice: ConnectedDevice | null;
+  /** Set when the user explicitly disconnects; suppresses auto-reconnect until next connect() */
+  userDisconnected: boolean;
 
   // Preset State
   presets: Preset[];
@@ -77,7 +79,7 @@ interface EQStore {
 
   // Device Actions
   connect: () => Promise<void>;
-  autoConnect: () => Promise<void>;
+  autoConnect: (useRequestFallback?: boolean) => Promise<void>;
   disconnect: () => Promise<void>;
   pullFromDevice: () => Promise<void>;
   saveToDevice: () => Promise<void>;
@@ -128,6 +130,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
     errorMessage: null,
   },
   connectedDevice: null,
+  userDisconnected: false,
   presets: loadPresets(),
   activePresetId: null,
   activeCommunityPath: null,
@@ -356,12 +359,14 @@ export const useEQStore = create<EQStore>((set, get) => ({
   connect: async () => {
     set(state => ({
       device: { ...state.device, status: 'connecting', errorMessage: null },
+      userDisconnected: false,
     }));
 
     try {
       const connected = await connectToDevice();
       set({
         connectedDevice: connected,
+        userDisconnected: false,
         device: {
           status: 'connected',
           model: connected.model,
@@ -382,12 +387,13 @@ export const useEQStore = create<EQStore>((set, get) => ({
     }
   },
 
-  autoConnect: async () => {
+  autoConnect: async (useRequestFallback = false) => {
     // Silent auto-connect: no status change on failure, no error shown
-    const { connectedDevice } = get();
+    const { connectedDevice, userDisconnected } = get();
     if (connectedDevice) return; // Already connected
+    if (userDisconnected) return; // User explicitly disconnected — respect that
 
-    const connected = await tryAutoConnect();
+    const connected = await tryAutoConnect(useRequestFallback);
     if (connected) {
       set({
         connectedDevice: connected,
@@ -406,6 +412,9 @@ export const useEQStore = create<EQStore>((set, get) => ({
   disconnect: async () => {
     const { connectedDevice } = get();
     if (connectedDevice) {
+      // Clear stale input handler before closing so a late callback can't fire
+      // on a closed device or against a stale state closure.
+      connectedDevice.rawDevice.oninputreport = null;
       try {
         await disconnectFromDevice(connectedDevice.rawDevice);
       } catch {
@@ -414,6 +423,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
     }
     set({
       connectedDevice: null,
+      userDisconnected: true,
       device: {
         status: 'disconnected',
         model: null,
@@ -458,15 +468,33 @@ export const useEQStore = create<EQStore>((set, get) => ({
 
     try {
       await saveToDeviceFlash(connectedDevice.rawDevice, bands, connectedDevice.currentSlot, preamp);
-      set({ isDirty: false });
+      set(state => ({
+        isDirty: false,
+        device: {
+          ...state.device,
+          errorMessage: null,
+        },
+      }));
     } catch (err) {
       if (err instanceof Error && err.message === 'Device is busy') return;
+      const errorMessage = err instanceof Error ? err.message : 'Save failed';
       set(state => ({
         device: {
           ...state.device,
-          errorMessage: err instanceof Error ? err.message : 'Save failed',
+          errorMessage,
         },
       }));
+      // Auto-dismiss transient cooldown errors after the cooldown expires
+      if (err instanceof Error && err.message.includes('before saving to flash')) {
+        setTimeout(() => {
+          set(state => {
+            if (state.device.errorMessage === errorMessage) {
+              return { device: { ...state.device, errorMessage: null } };
+            }
+            return state;
+          });
+        }, 5000);
+      }
     }
   },
 

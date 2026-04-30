@@ -17,6 +17,11 @@ out/
 dist-electron/
 resources/autoeq-bundle.json
 
+# Tool-generated transient configs (electron-vite intermediate output)
+electron.vite.config.*.mjs
+vite.config.*.mjs
+*.timestamp-*.mjs
+
 # Environment files
 .env
 .env.*

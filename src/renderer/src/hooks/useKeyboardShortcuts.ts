@@ -12,9 +12,10 @@ import { useEQStore } from '../store/eq-store';
 export function useKeyboardShortcuts() {
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      // Ignore when typing in inputs / textareas / selects
+      // Ignore when typing in form fields, or when a button/link has focus
+      // (lets Space activate the focused control instead of toggling A/B).
       const tag = (e.target as HTMLElement).tagName;
-      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return;
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || tag === 'BUTTON') return;
 
       const ctrl = e.ctrlKey || e.metaKey;
 

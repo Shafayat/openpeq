@@ -43,7 +43,6 @@ function toSigned16FixedPoint(value: number, scale: number): [number, number] {
 
 async function sendReport(device: HIDDevice, reportId: number, packet: number[]): Promise<void> {
   const data = new Uint8Array(packet);
-  console.log(`[CrinEQ] sendReport(0x${reportId.toString(16)}):`, Array.from(data).map(b => '0x' + b.toString(16).padStart(2, '0')).join(' '));
   await device.sendReport(reportId, data);
 }
 
@@ -88,24 +87,29 @@ function parseFilterPacket(packet: Uint8Array): {
   q: number;
   gain: number;
   type: FilterType;
+  enabled: boolean;
 } {
   const filterIndex = packet[4];
-  const freq = packet[27] | (packet[28] << 8);
+  const rawFreq = packet[27] | (packet[28] << 8);
   const qRaw = packet[29] | (packet[30] << 8);
   const q = Math.round((qRaw / 256) * 100) / 100;
   let gainRaw = packet[31] | (packet[32] << 8);
   if (gainRaw > 32767) gainRaw -= 65536;
-  const gain = Math.round((gainRaw / 256) * 100) / 100;
+  const rawGain = Math.round((gainRaw / 256) * 100) / 100;
   const typeVal = packet[33];
   const type = (BYTE_TO_FILTER_TYPE[typeVal] || 'PK') as FilterType;
+
+  // Empty-slot detection BEFORE clamping: device reports rawFreq=0 for unused slots
+  const enabled = rawFreq !== 0 || rawGain !== 0;
 
   // Clamp device response values to safe ranges (defense against malfunctioning device)
   return {
     filterIndex,
-    freq: clamp(freq, MIN_FREQ, MAX_FREQ),
+    freq: clamp(rawFreq, MIN_FREQ, MAX_FREQ),
     q: clamp(q, MIN_Q, MAX_Q),
-    gain: clamp(gain, MIN_GAIN, MAX_GAIN),
+    gain: clamp(rawGain, MIN_GAIN, MAX_GAIN),
     type,
+    enabled,
   };
 }
 
@@ -135,7 +139,7 @@ export async function pullFiltersFromDevice(device: HIDDevice): Promise<{
             gain: parsed.gain,
             q: parsed.q,
             type: parsed.type,
-            enabled: parsed.gain !== 0 || parsed.freq !== 0,
+            enabled: parsed.enabled,
           };
           receivedCount++;
 
@@ -274,7 +278,6 @@ export async function saveToDeviceFlash(
     throw new Error(`Please wait ${remaining}s before saving to flash again`);
   }
 
-  console.log(`[CrinEQ] saveToDeviceFlash: slotId=${slotId}, ${bands.length} bands, preamp=${preamp}`);
   return withDeviceLock(async () => {
     // Push the filters (including preamp)
     await pushFiltersInternal(device, bands, slotId, preamp);

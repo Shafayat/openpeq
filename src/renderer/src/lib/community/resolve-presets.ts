@@ -46,6 +46,15 @@ export const RESOLVE_PRESETS: ResolvePreset[] = [
     ],
   },
   {
+    // Source: unheardlab.com 2025 review (Resolve has not published an EQ for the XV).
+    entry: { name: 'HIFIMAN Edition XV', source: 'Unheardlab', form: 'over-ear', path: 'unheardlab/over-ear/HIFIMAN Edition XV' },
+    preamp: -4.0,
+    bands: [
+      b(30, 4.0, 0.5), b(170, -2.5, 2.0), b(400, -1.0, 2.5),
+      b(700, -1.5, 1.5), b(1700, 3.0, 1.6), b(16500, 3.0, 1.0),
+    ],
+  },
+  {
     entry: { name: 'HIFIMAN Arya Stealth', source: 'Resolve', form: 'over-ear', path: 'resolve/over-ear/HIFIMAN Arya Stealth' },
     preamp: -4.0,
     bands: [
