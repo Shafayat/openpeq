@@ -6,6 +6,9 @@
  */
 import { writeFileSync, mkdirSync } from 'fs'
 import path from 'path'
+import { fileURLToPath } from 'url'
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
 const INDEX_URL = 'https://raw.githubusercontent.com/jaakkopasanen/AutoEq/master/results/INDEX.md'
 const RAW_BASE = 'https://raw.githubusercontent.com/jaakkopasanen/AutoEq/master/results'

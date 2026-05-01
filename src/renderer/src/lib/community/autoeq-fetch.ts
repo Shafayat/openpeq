@@ -14,12 +14,10 @@ const RAW_BASE = 'https://raw.githubusercontent.com/jaakkopasanen/AutoEq/master/
 export async function fetchAutoEQProfile(
   entry: AutoEQEntry,
 ): Promise<{ bands: Band[]; preamp: number }> {
-  // Resolve presets are built-in — return immediately
-  if (entry.source === 'Resolve') {
-    const preset = RESOLVE_PRESETS.find(p => p.entry.path === entry.path);
-    if (preset) {
-      return { bands: preset.bands, preamp: preset.preamp };
-    }
+  // Built-in presets (Resolve, Unheardlab, ...) — match by path so the source label is decorative
+  const builtIn = RESOLVE_PRESETS.find(p => p.entry.path === entry.path);
+  if (builtIn) {
+    return { bands: builtIn.bands, preamp: builtIn.preamp };
   }
 
   // Electron: check offline bundle first
