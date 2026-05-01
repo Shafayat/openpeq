@@ -1,7 +1,13 @@
 import type { Band, FilterType, Preset } from '../../types/eq';
-import { DEFAULT_BANDS } from '../../types/eq';
+import { DEFAULT_BANDS, MIN_GAIN, MAX_GAIN } from '../../types/eq';
 import { generateId, clamp } from '../../utils/math';
 import { sanitizeBands, sanitizePreamp } from '../validation';
+
+export interface ImportResult {
+  bands: Band[];
+  preamp: number;
+  warnings: string[];
+}
 
 /**
  * Parse AutoEQ / EqualizerAPO format. Handles many variations:
@@ -11,17 +17,23 @@ import { sanitizeBands, sanitizePreamp } from '../validation';
  *   Filter 3: PK Fc 200 Hz Gain 2.0 dB Q 1.41
  *   Filter 4: OFF PK Fc 500 Hz Gain -1.0 dB Q 2.00
  */
-function mapFilterType(raw: string): FilterType {
+const UNSUPPORTED_FILTER_TYPES = new Set(['LP', 'HP', 'NO', 'BP', 'LPQ', 'HPQ', 'AP', 'NONE']);
+
+function mapFilterType(raw: string): FilterType | null {
   const t = raw.toUpperCase();
+  if (UNSUPPORTED_FILTER_TYPES.has(t)) return null;
   if (t === 'LSC' || t === 'LSQ' || t === 'LS' || t === 'LOW' || t === 'LOWSHELF') return 'LSQ';
   if (t === 'HSC' || t === 'HSQ' || t === 'HS' || t === 'HIGH' || t === 'HIGHSHELF') return 'HSQ';
   return 'PK';
 }
 
-export function parseAutoEQ(text: string): { bands: Band[]; preamp: number } {
+export function parseAutoEQ(text: string): ImportResult {
   const lines = text.trim().split('\n');
   const bands: Band[] = [];
+  const warnings: string[] = [];
   let preamp = 0;
+  let skippedFilters = 0;
+  let clampedBands = 0;
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -39,14 +51,31 @@ export function parseAutoEQ(text: string): { bands: Band[]; preamp: number } {
       /^Filter\s+\d+:\s*(?:ON|OFF)?\s*(PK|PEQ|LSC|LSQ|HSC|HSQ|LS|HS|LP|HP|NO|BP|LPQ|HPQ|AP|NONE|LOW\s*SHELF|HIGH\s*SHELF)\s+Fc\s+(\d+\.?\d*)\s*Hz\s+Gain\s+([-+]?\d+\.?\d*)\s*dB\s+Q\s+(\d+\.?\d*)/i
     );
     if (filterMatch) {
+      const rawType = filterMatch[1].replace(/\s+/g, '');
+      const mappedType = mapFilterType(rawType);
+      if (mappedType === null) {
+        skippedFilters++;
+        continue;
+      }
+      const rawGain = parseFloat(filterMatch[3]);
+      if (rawGain < MIN_GAIN || rawGain > MAX_GAIN) {
+        clampedBands++;
+      }
       bands.push({
         freq: clamp(Math.round(parseFloat(filterMatch[2])), 20, 20000),
-        gain: clamp(parseFloat(filterMatch[3]), -10, 10),
+        gain: clamp(rawGain, MIN_GAIN, MAX_GAIN),
         q: clamp(parseFloat(filterMatch[4]), 0.1, 30),
-        type: mapFilterType(filterMatch[1]),
+        type: mappedType,
         enabled: true,
       });
     }
+  }
+
+  if (skippedFilters > 0) {
+    warnings.push(`${skippedFilters} unsupported filter${skippedFilters > 1 ? 's' : ''} (HP/LP/BP/Notch) skipped — device only supports PK/LS/HS`);
+  }
+  if (clampedBands > 0) {
+    warnings.push(`${clampedBands} band${clampedBands > 1 ? 's' : ''} had gain outside ±${MAX_GAIN} dB and ${clampedBands > 1 ? 'were' : 'was'} clamped`);
   }
 
   // Pad to 10 bands if fewer
@@ -55,7 +84,7 @@ export function parseAutoEQ(text: string): { bands: Band[]; preamp: number } {
   }
 
   // Truncate to 10
-  return { bands: bands.slice(0, 10), preamp };
+  return { bands: bands.slice(0, 10), preamp, warnings };
 }
 
 /**
@@ -63,10 +92,12 @@ export function parseAutoEQ(text: string): { bands: Band[]; preamp: number } {
  *   Band 1: Freq 100 Gain 3.5 Q 1.41 Type Peak
  *   Or CSV-like: 100,3.5,1.41,PK
  */
-export function parsePeaceEQ(text: string): { bands: Band[]; preamp: number } {
+export function parsePeaceEQ(text: string): ImportResult {
   const lines = text.trim().split('\n');
   const bands: Band[] = [];
+  const warnings: string[] = [];
   let preamp = 0;
+  let clampedBands = 0;
 
   for (const line of lines) {
     const trimmed = line.trim();
@@ -75,11 +106,15 @@ export function parsePeaceEQ(text: string): { bands: Band[]; preamp: number } {
     // Try CSV format: freq,gain,q[,type]
     const csvMatch = trimmed.match(/^(\d+\.?\d*)\s*[,;\t]\s*([-+]?\d+\.?\d*)\s*[,;\t]\s*(\d+\.?\d*)(?:\s*[,;\t]\s*(PK|LSQ|HSQ|Peak|LowShelf|HighShelf))?/i);
     if (csvMatch) {
-      const type: FilterType = mapFilterType(csvMatch[4] || 'PK');
+      const type: FilterType = mapFilterType(csvMatch[4] || 'PK') ?? 'PK';
+      const rawGain = parseFloat(csvMatch[2]);
+      if (rawGain < MIN_GAIN || rawGain > MAX_GAIN) {
+        clampedBands++;
+      }
 
       bands.push({
         freq: clamp(Math.round(parseFloat(csvMatch[1])), 20, 20000),
-        gain: clamp(parseFloat(csvMatch[2]), -10, 10),
+        gain: clamp(rawGain, MIN_GAIN, MAX_GAIN),
         q: clamp(parseFloat(csvMatch[3]), 0.1, 30),
         type,
         enabled: true,
@@ -94,11 +129,15 @@ export function parsePeaceEQ(text: string): { bands: Band[]; preamp: number } {
     }
   }
 
+  if (clampedBands > 0) {
+    warnings.push(`${clampedBands} band${clampedBands > 1 ? 's' : ''} had gain outside ±${MAX_GAIN} dB and ${clampedBands > 1 ? 'were' : 'was'} clamped`);
+  }
+
   while (bands.length < 10) {
     bands.push({ ...DEFAULT_BANDS[bands.length] || DEFAULT_BANDS[0], gain: 0 });
   }
 
-  return { bands: bands.slice(0, 10), preamp };
+  return { bands: bands.slice(0, 10), preamp, warnings };
 }
 
 /** Export current EQ state as JSON */
@@ -114,7 +153,7 @@ export function exportAsJSON(bands: Band[], preamp: number, name: string): strin
 }
 
 /** Import a JSON preset file with full sanitization of untrusted data. */
-export function importFromJSON(json: string): { bands: Band[]; preamp: number; name: string } {
+export function importFromJSON(json: string): ImportResult & { name: string } {
   const parsed = JSON.parse(json);
   if (!parsed || typeof parsed !== 'object') {
     throw new Error('Invalid preset file format');
@@ -122,10 +161,23 @@ export function importFromJSON(json: string): { bands: Band[]; preamp: number; n
   if (!parsed.bands || !Array.isArray(parsed.bands)) {
     throw new Error('Invalid preset file format: missing bands array');
   }
+  const warnings: string[] = [];
+  let clampedBands = 0;
+  if (Array.isArray(parsed.bands)) {
+    for (const b of parsed.bands) {
+      if (b && typeof b.gain === 'number' && (b.gain < MIN_GAIN || b.gain > MAX_GAIN)) {
+        clampedBands++;
+      }
+    }
+  }
+  if (clampedBands > 0) {
+    warnings.push(`${clampedBands} band${clampedBands > 1 ? 's' : ''} had gain outside ±${MAX_GAIN} dB and ${clampedBands > 1 ? 'were' : 'was'} clamped`);
+  }
   return {
     bands: sanitizeBands(parsed.bands),
     preamp: sanitizePreamp(parsed.preamp),
     name: typeof parsed.name === 'string' ? parsed.name.slice(0, 100) : 'Imported Preset',
+    warnings,
   };
 }
 

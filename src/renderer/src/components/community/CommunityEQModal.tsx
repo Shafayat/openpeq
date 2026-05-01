@@ -87,8 +87,8 @@ export function CommunityEQModal() {
     store.setLoadingProfile(true);
     store.setError(null);
     try {
-      const { bands, preamp } = await fetchAutoEQProfile(entry);
-      setBandsFromCommunity(bands, preamp, entry.path, entry.name, entry.source);
+      const { bands, preamp, warnings } = await fetchAutoEQProfile(entry);
+      setBandsFromCommunity(bands, preamp, entry.path, entry.name, entry.source, warnings);
       store.close();
     } catch (err) {
       store.setError(err instanceof Error ? err.message : 'Failed to load profile');

@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useEQStore } from '../../store/eq-store';
 import { useCommunityStore } from '../../store/community-store';
 import {
@@ -20,11 +20,19 @@ export function PresetPanel() {
   const savePreset = useEQStore(s => s.savePreset);
   const deletePreset = useEQStore(s => s.deletePreset);
   const setBands = useEQStore(s => s.setBands);
+  const importWarnings = useEQStore(s => s.importWarnings);
+  const clearImportWarnings = useEQStore(s => s.clearImportWarnings);
 
   const [showImport, setShowImport] = useState(false);
   const [saving, setSaving] = useState(false);
   const [saveName, setSaveName] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (importWarnings.length === 0) return;
+    const timer = setTimeout(clearImportWarnings, 8000);
+    return () => clearTimeout(timer);
+  }, [importWarnings, clearImportWarnings]);
 
   const handleSave = () => {
     if (saving) {
@@ -66,16 +74,16 @@ export function PresetPanel() {
       const content = reader.result as string;
       try {
         if (file.name.endsWith('.json')) {
-          const { bands: importedBands, preamp: importedPreamp } = importFromJSON(content);
-          setBands(importedBands, importedPreamp);
+          const { bands: importedBands, preamp: importedPreamp, warnings } = importFromJSON(content);
+          setBands(importedBands, importedPreamp, warnings);
         } else {
           // Try AutoEQ format first, then Peace
           const result = parseAutoEQ(content);
           if (result.bands.some(b => b.gain !== 0)) {
-            setBands(result.bands, result.preamp);
+            setBands(result.bands, result.preamp, result.warnings);
           } else {
             const peaceResult = parsePeaceEQ(content);
-            setBands(peaceResult.bands, peaceResult.preamp);
+            setBands(peaceResult.bands, peaceResult.preamp, peaceResult.warnings);
           }
         }
       } catch (err) {
@@ -90,7 +98,7 @@ export function PresetPanel() {
   const handleImportText = (text: string, format: 'autoeq' | 'peace') => {
     try {
       const result = format === 'autoeq' ? parseAutoEQ(text) : parsePeaceEQ(text);
-      setBands(result.bands, result.preamp);
+      setBands(result.bands, result.preamp, result.warnings);
       setShowImport(false);
     } catch (err) {
       console.error('Import failed:', err);
@@ -150,6 +158,18 @@ export function PresetPanel() {
             className="text-xs text-text-muted hover:text-text-secondary"
           >
             Cancel
+          </button>
+        </div>
+      )}
+
+      {/* Import warnings */}
+      {importWarnings.length > 0 && (
+        <div className="flex flex-col gap-1 px-3 py-2 rounded-md bg-amber-500/10 border border-amber-500/20">
+          {importWarnings.map((w, i) => (
+            <p key={i} className="text-[11px] text-amber-400">{w}</p>
+          ))}
+          <button onClick={clearImportWarnings} className="self-end text-[10px] text-amber-500/60 hover:text-amber-400 transition-colors">
+            dismiss
           </button>
         </div>
       )}

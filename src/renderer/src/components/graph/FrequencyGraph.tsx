@@ -2,6 +2,7 @@ import { useCallback, useRef, useEffect, useState, useMemo } from 'react';
 import { useEQStore } from '../../store/eq-store';
 import { BAND_COLORS } from '../../types/eq';
 import { GraphGrid } from './GraphGrid';
+import { BandCurves } from './BandCurves';
 import { CompositeCurve } from './CompositeCurve';
 import { DragHandle } from './DragHandle';
 
@@ -12,7 +13,8 @@ export function FrequencyGraph() {
   const [dimensions, setDimensions] = useState({ width: 900, height: 340 });
 
   const bands = useEQStore(s => s.bands);
-  const setBandParam = useEQStore(s => s.setBandParam);
+  const setBandDrag = useEQStore(s => s.setBandDrag);
+  const pushHistorySnapshot = useEQStore(s => s.pushHistorySnapshot);
   const graphDbRange = useEQStore(s => s.graphDbRange);
   const setGraphDbRange = useEQStore(s => s.setGraphDbRange);
   const eqEnabled = useEQStore(s => s.eqEnabled);
@@ -42,10 +44,13 @@ export function FrequencyGraph() {
     return () => observer.disconnect();
   }, []);
 
+  const handleDragStart = useCallback(() => {
+    pushHistorySnapshot();
+  }, [pushHistorySnapshot]);
+
   const handleDrag = useCallback((index: number, freq: number, gain: number) => {
-    setBandParam(index, 'freq', freq);
-    setBandParam(index, 'gain', gain);
-  }, [setBandParam]);
+    setBandDrag(index, freq, gain);
+  }, [setBandDrag]);
 
   return (
     <div ref={containerRef} className="w-full glass-card p-4">
@@ -98,6 +103,15 @@ export function FrequencyGraph() {
           dbRange={graphDbRange}
         />
 
+        {/* Per-band response curves */}
+        <BandCurves
+          bands={displayBands}
+          width={dimensions.width}
+          height={dimensions.height}
+          padding={PADDING}
+          dbRange={graphDbRange}
+        />
+
         {/* A/B snapshot composite curve (shown as faded dashed line when comparing) */}
         {snapshotBands && (
           <CompositeCurve
@@ -132,6 +146,7 @@ export function FrequencyGraph() {
             height={dimensions.height}
             padding={PADDING}
             dbRange={graphDbRange}
+            onDragStart={handleDragStart}
             onDrag={handleDrag}
           />
         ))}

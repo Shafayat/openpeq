@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Band, DeviceState, Preset, FilterType } from '../types/eq';
 import { DEFAULT_BANDS, MIN_FREQ, MAX_FREQ, MIN_GAIN, MAX_GAIN, MIN_Q, MAX_Q } from '../types/eq';
 import { clamp, generateId, roundTo } from '../utils/math';
+import { computeCompositeResponse } from '../lib/dsp/frequency-response';
 import type { ConnectedDevice } from '../lib/usb/hid-connection';
 import { connectToDevice, disconnectFromDevice, tryAutoConnect } from '../lib/usb/hid-connection';
 import { pullFiltersFromDevice, pushFiltersToDevice, saveToDeviceFlash } from '../lib/usb/walkplay-protocol';
@@ -39,6 +40,9 @@ interface EQStore {
   // Dirty tracking (unsaved changes)
   isDirty: boolean;
 
+  // Import warnings (shown temporarily after import)
+  importWarnings: string[];
+
   // EQ bypass
   eqEnabled: boolean;
 
@@ -60,11 +64,14 @@ interface EQStore {
   setBandParam: (index: number, param: 'freq' | 'gain' | 'q', value: number) => void;
   setBandType: (index: number, type: FilterType) => void;
   toggleBand: (index: number) => void;
+  pushHistorySnapshot: () => void;
+  setBandDrag: (index: number, freq: number, gain: number) => void;
   setPreamp: (value: number) => void;
   setAutoPreamp: (enabled: boolean) => void;
   resetFlat: () => void;
-  setBands: (bands: Band[], preamp?: number) => void;
-  setBandsFromCommunity: (bands: Band[], preamp: number, path: string, name: string, source: string) => void;
+  setBands: (bands: Band[], preamp?: number, warnings?: string[]) => void;
+  setBandsFromCommunity: (bands: Band[], preamp: number, path: string, name: string, source: string, warnings?: string[]) => void;
+  clearImportWarnings: () => void;
   toggleEQ: () => void;
 
   // Undo/Redo Actions
@@ -96,13 +103,9 @@ interface EQStore {
 const MAX_HISTORY = 50;
 
 function calculateAutoPreamp(bands: Band[]): number {
-  let maxGain = 0;
-  for (const band of bands) {
-    if (band.enabled && band.gain > maxGain) {
-      maxGain = band.gain;
-    }
-  }
-  return maxGain > 0 ? roundTo(-maxGain, 1) : 0;
+  const response = computeCompositeResponse(bands);
+  const peak = Math.max(0, ...response);
+  return peak > 0 ? roundTo(-peak, 1) : 0;
 }
 
 function cloneBands(bands: Band[]): Band[] {
@@ -137,6 +140,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
   activeCommunityName: null,
   activeCommunitySource: null,
   isDirty: false,
+  importWarnings: [],
   eqEnabled: true,
 
   // Undo/Redo
@@ -202,6 +206,25 @@ export const useEQStore = create<EQStore>((set, get) => ({
     });
   },
 
+  pushHistorySnapshot: () => {
+    set(state => pushHistory(state));
+  },
+
+  setBandDrag: (index, freq, gain) => {
+    set(state => {
+      const bands = state.bands.map((b, i) => {
+        if (i !== index) return b;
+        return {
+          ...b,
+          freq: clamp(Math.round(freq), MIN_FREQ, MAX_FREQ),
+          gain: clamp(roundTo(gain, 1), MIN_GAIN, MAX_GAIN),
+        };
+      });
+      const preamp = state.autoPreamp ? calculateAutoPreamp(bands) : state.preamp;
+      return { bands, preamp, isDirty: true, activePresetId: null, activeCommunityPath: null, activeCommunityName: null, activeCommunitySource: null };
+    });
+  },
+
   setPreamp: (value) => {
     set(state => ({
       ...pushHistory(state),
@@ -226,7 +249,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
     });
   },
 
-  setBands: (bands, preamp) => {
+  setBands: (bands, preamp, warnings) => {
     const safeBands = sanitizeBands(bands);
     const safePreamp = preamp !== undefined ? sanitizePreamp(preamp) : undefined;
     set(state => ({
@@ -234,6 +257,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
       bands: safeBands,
       preamp: safePreamp ?? (state.autoPreamp ? calculateAutoPreamp(safeBands) : state.preamp),
       isDirty: true,
+      importWarnings: warnings ?? [],
       activePresetId: null,
       activeCommunityPath: null,
       activeCommunityName: null,
@@ -241,7 +265,7 @@ export const useEQStore = create<EQStore>((set, get) => ({
     }));
   },
 
-  setBandsFromCommunity: (bands, preamp, path, name, source) => {
+  setBandsFromCommunity: (bands, preamp, path, name, source, warnings) => {
     const safeBands = sanitizeBands(bands);
     const safePreamp = sanitizePreamp(preamp);
     set(state => ({
@@ -250,11 +274,16 @@ export const useEQStore = create<EQStore>((set, get) => ({
       preamp: safePreamp,
       autoPreamp: false,
       isDirty: true,
+      importWarnings: warnings ?? [],
       activePresetId: null,
       activeCommunityPath: path,
       activeCommunityName: name,
       activeCommunitySource: source,
     }));
+  },
+
+  clearImportWarnings: () => {
+    set({ importWarnings: [] });
   },
 
   toggleEQ: () => {

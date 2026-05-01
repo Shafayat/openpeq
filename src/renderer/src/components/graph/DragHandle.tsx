@@ -1,5 +1,5 @@
 import { useCallback, useRef } from 'react';
-import { MIN_FREQ, MAX_FREQ } from '../../types/eq';
+import { MIN_FREQ, MAX_FREQ, MIN_GAIN, MAX_GAIN } from '../../types/eq';
 import { freqToLogPosition, logPositionToFreq, clamp } from '../../utils/math';
 
 interface Props {
@@ -12,10 +12,11 @@ interface Props {
   height: number;
   padding: { top: number; right: number; bottom: number; left: number };
   dbRange: number;
+  onDragStart: () => void;
   onDrag: (index: number, freq: number, gain: number) => void;
 }
 
-export function DragHandle({ freq, gain, color, index, enabled, width, height, padding, dbRange, onDrag }: Props) {
+export function DragHandle({ freq, gain, color, index, enabled, width, height, padding, dbRange, onDragStart, onDrag }: Props) {
   const plotW = width - padding.left - padding.right;
   const plotH = height - padding.top - padding.bottom;
   const draggingRef = useRef(false);
@@ -29,8 +30,9 @@ export function DragHandle({ freq, gain, color, index, enabled, width, height, p
     e.preventDefault();
     e.stopPropagation();
     draggingRef.current = true;
+    onDragStart();
     (e.target as SVGElement).setPointerCapture(e.pointerId);
-  }, []);
+  }, [onDragStart]);
 
   const handlePointerMove = useCallback((e: React.PointerEvent) => {
     if (!draggingRef.current) return;
@@ -47,7 +49,7 @@ export function DragHandle({ freq, gain, color, index, enabled, width, height, p
     const normalizedY = (mouseY - padding.top) / plotH;
 
     const newFreq = Math.round(clamp(logPositionToFreq(normalizedX, MIN_FREQ, MAX_FREQ), MIN_FREQ, MAX_FREQ));
-    const newGain = clamp(dbRange - normalizedY * (dbRange * 2), -10, 10);
+    const newGain = clamp(dbRange - normalizedY * (dbRange * 2), MIN_GAIN, MAX_GAIN);
 
     onDrag(index, newFreq, Math.round(newGain * 10) / 10);
   }, [index, padding, plotW, plotH, onDrag, dbRange]);

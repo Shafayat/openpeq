@@ -7,10 +7,12 @@ import { DevicePanel } from './components/device/DevicePanel';
 import { PresetPanel } from './components/presets/PresetPanel';
 import { CommunityEQModal } from './components/community/CommunityEQModal';
 import { useDevice } from './hooks/useDevice';
+import { useAutoSync } from './hooks/useAutoSync';
 import { useKeyboardShortcuts } from './hooks/useKeyboardShortcuts';
 
 export default function App() {
   useDevice();
+  useAutoSync();
   useKeyboardShortcuts();
 
   return (
